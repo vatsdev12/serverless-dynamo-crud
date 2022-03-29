@@ -1,0 +1,93 @@
+service: fcm-notification-update
+
+frameworkVersion: "3"
+
+custom:
+  UserTable: "UserDeviceTable-${sls:stage}"
+  NotificationTemplateTable: "NotificationTemplateTable-${sls:stage}"
+  myStage: ${opt:stage, self:provider.stage}
+  settings: ${file(./${opt:stage, 'dev'}.json):CREDS}  
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  memorySize: 2048
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'eu-central-1'}
+  environment:
+    USER_TABLE: ${self:custom.UserTable}
+    NOTIFICATION_TEMPLATE_TABLE: ${self:custom.NotificationTemplateTable}
+    ACCESS_KEY: ${self:custom.settings.accessKeyId}
+    SECRET_KEY: ${self:custom.settings.secretAccessKey}
+    PLATFORM_APPLICATION_ARN: ${self:custom.settings.PlatformApplicationArn}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.USER_TABLE}"
+  
+
+    
+resources:
+  Resources:
+    UserTable: ${file(resources/UserTable.yml):UserTable}
+    NotificationTemplateTable: ${file(resources/NotificationTemplate.yml):NotificationTemplateTable}
+
+
+functions:
+  addDeviceToken:
+    handler: src/handlers/users/create.create
+    events:
+      - http:
+          method: POST
+          path: /user-form
+          cors: true
+  getUserByToken:
+    handler: src/handlers/users/query.query
+    events:
+      - http:
+          path: /user-deviceToken/{userId}
+          method: get
+          cors: true
+  savetemplate:
+    handler: src/handlers/notificationTemplates/create.create
+    events:
+      - http:
+          path: /notification-saveTemplate
+          method: POST
+          cors: true   
+  sendNotification:
+    handler: src/handlers/notificationTemplates/sendNotification.send
+    events:
+      - http:
+          path: /notification-send
+          method: post
+          cors: true  
+  updateTemplate:
+    handler: src/handlers/notificationTemplates/update.update
+    events:
+      - http:
+          path: /notification-update/{notificationName}
+          method: put
+          cors: true   
+  deleteTemplate:
+    handler: src/handlers/notificationTemplates/delete.delete
+    events:
+      - http:
+          path: /notification-delete/{notificationName}
+          method: delete
+          cors: true     
+  listTemplate:
+    handler: src/handlers/notificationTemplates/list.list
+    events:
+      - http:
+          path: /notification-list/{LastEvaluatedKey}
+          method: get
+          cors: true                                          
+
+
